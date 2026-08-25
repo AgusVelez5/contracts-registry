@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and build web
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+  build-binaries:
+    needs: build-frontend
+    strategy:
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            npm-pkg: contracts-registry-darwin-arm64
+          - platform: darwin-x64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+            npm-pkg: contracts-registry-darwin-x64
+          - platform: linux-x64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            npm-pkg: contracts-registry-linux-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build binary
+        working-directory: engine
+        run: cargo build --release --features embed-frontend --target ${{ matrix.target }}
+
+      - name: Copy binary into npm package
+        run: |
+          mkdir -p npm/${{ matrix.npm-pkg }}/bin
+          cp engine/target/${{ matrix.target }}/release/engine \
+             npm/${{ matrix.npm-pkg }}/bin/contracts-registry
+
+      - name: Upload platform binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.npm-pkg }}
+          path: npm/${{ matrix.npm-pkg }}/bin/contracts-registry
+
+  publish:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts-registry-darwin-arm64
+          path: npm/contracts-registry-darwin-arm64/bin
+
+      - name: Download darwin-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts-registry-darwin-x64
+          path: npm/contracts-registry-darwin-x64/bin
+
+      - name: Download linux-x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: contracts-registry-linux-x64
+          path: npm/contracts-registry-linux-x64/bin
+
+      - name: Make binaries executable
+        run: chmod +x npm/*/bin/contracts-registry
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for pkg in npm/contracts-registry npm/contracts-registry-darwin-arm64 npm/contracts-registry-darwin-x64 npm/contracts-registry-linux-x64; do
+            npm pkg set version="$VERSION" --prefix "$pkg"
+          done
+          npm pkg set \
+            optionalDependencies.contracts-registry-darwin-arm64="$VERSION" \
+            optionalDependencies.contracts-registry-darwin-x64="$VERSION" \
+            optionalDependencies.contracts-registry-linux-x64="$VERSION" \
+            --prefix npm/contracts-registry
+
+      - name: Publish platform packages
+        run: |
+          for pkg in darwin-arm64 darwin-x64 linux-x64; do
+            npm publish npm/contracts-registry-$pkg --access public
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish base package
+        run: npm publish npm/contracts-registry --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

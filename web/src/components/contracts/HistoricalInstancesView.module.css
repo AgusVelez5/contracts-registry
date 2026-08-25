@@ -1,0 +1,8 @@
+.historicalTable {
+  margin-top: 8px;
+}
+
+.historicalTable th:nth-child(1) { width: 90px; }
+.historicalTable th:nth-child(2) { width: auto; }
+.historicalTable th:nth-child(3) { width: 140px; }
+.historicalTable th:nth-child(4) { width: 110px; }

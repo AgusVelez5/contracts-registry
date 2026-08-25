@@ -1,0 +1,41 @@
+.collapsibleSection {
+  margin-bottom: 24px;
+}
+
+.collapsibleSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  text-align: left;
+  color: inherit;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: var(--accent);
+  font-size: 11px;
+  width: 10px;
+}
+
+.expanded {
+  transform: rotate(90deg);
+}
+
+.sectionCount {
+  color: var(--text-muted);
+  font-weight: normal;
+}

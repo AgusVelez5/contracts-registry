@@ -1,0 +1,13 @@
+import { Link } from "react-router-dom";
+
+function NotFoundPage() {
+  return (
+    <div>
+      <h2>Page not found</h2>
+      <p className="placeholder-text">This route doesn't exist.</p>
+      <Link to="/">← Back to home</Link>
+    </div>
+  );
+}
+
+export default NotFoundPage;

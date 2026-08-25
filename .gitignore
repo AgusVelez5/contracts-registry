@@ -1,0 +1,13 @@
+/engine/target
+
+node_modules/
+/web/dist
+
+npm/*/bin/contracts-registry
+npm/*/bin/contracts-registry.exe
+
+registry.config.json
+.registry-cache.json
+
+.DS_Store
+.vscode/

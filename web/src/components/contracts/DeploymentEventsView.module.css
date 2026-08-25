@@ -1,0 +1,19 @@
+.historyTable {
+  table-layout: fixed;
+}
+
+.historyTable th:nth-child(1) { width: 90px; }
+.historyTable th:nth-child(2) { width: 60px; }
+.historyTable th:nth-child(3) { width: 200px; }
+.historyTable th:nth-child(4) { width: 200px; }
+.historyTable th:nth-child(5) { width: 90px; }
+.historyTable th:nth-child(6) { width: 100px; }
+.historyTable th:nth-child(7) { width: 40px; }
+
+.failedRow {
+  background: rgba(240, 101, 75, 0.06);
+}
+
+.addressCell {
+  overflow: hidden;
+}

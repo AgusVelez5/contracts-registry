@@ -1,0 +1,23 @@
+{
+  "name": "contracts-registry",
+  "version": "0.1.0",
+  "description": "Cross-chain Foundry deployment registry — CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgusVelez5/contracts-registry.git"
+  },
+  "homepage": "https://github.com/AgusVelez5/contracts-registry#readme",
+  "bin": {
+    "contracts-registry": "bin/run.js"
+  },
+  "optionalDependencies": {
+    "contracts-registry-darwin-arm64": "0.1.0",
+    "contracts-registry-darwin-x64": "0.1.0",
+    "contracts-registry-linux-x64": "0.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["foundry", "solidity", "evm", "smart-contracts", "deployment", "registry", "multichain"],
+  "license": "MIT"
+}

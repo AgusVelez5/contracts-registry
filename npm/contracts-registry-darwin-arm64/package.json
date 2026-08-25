@@ -1,0 +1,9 @@
+{
+  "name": "contracts-registry-darwin-arm64",
+  "version": "0.1.0",
+  "description": "contracts-registry binary for macOS (Apple Silicon)",
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin"],
+  "license": "MIT"
+}

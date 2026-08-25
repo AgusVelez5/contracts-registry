@@ -1,0 +1,27 @@
+.profileTable {
+  table-layout: fixed;
+}
+
+.profileTable th:nth-child(1) { width: 80px; }
+.profileTable th:nth-child(2) { width: auto; }
+.profileTable th:nth-child(3) { width: 160px; }
+.profileTable th:nth-child(4) { width: 110px; }
+.profileTable th:nth-child(5) { width: 45px; }
+
+.profileActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 16px 0 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.stalenessBadge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 100px;
+  border: 1px solid var(--pending);
+  color: var(--pending);
+}

@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install and build web
         working-directory: web
@@ -81,7 +81,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: "https://registry.npmjs.org"
 
       - name: Download darwin-arm64 binary
@@ -120,12 +120,12 @@ jobs:
       - name: Publish platform packages
         run: |
           for pkg in darwin-arm64 darwin-x64 linux-x64; do
-            npm publish npm/contracts-registry-$pkg --access public
+            npm publish "./npm/contracts-registry-$pkg" --access public
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish base package
-        run: npm publish npm/contracts-registry --access public
+        run: npm publish "./npm/contracts-registry" --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

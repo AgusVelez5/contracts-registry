@@ -125,6 +125,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Copy README into the base package
+        run: cp README.md npm/contracts-registry/README.md
+
       - name: Publish base package
         run: npm publish "./npm/contracts-registry" --access public
         env:

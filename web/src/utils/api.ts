@@ -7,7 +7,24 @@ import type {
   ChainInfo,
 } from "./types";
 
-const API_URL = "http://127.0.0.1:3001/v1";
+const API_URL = import.meta.env.DEV ? "http://127.0.0.1:3001/v1" : "/v1";
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // response body wasn't valid JSON — keep the generic message
+    }
+    throw new Error(message);
+  }
+
+  return response.json();
+}
 
 export async function fetchInstances(params: {
   contract?: string;
@@ -24,9 +41,7 @@ export async function fetchInstances(params: {
   if (params.excludeCurrent) search.set("exclude_current", "true");
 
   const query = search.toString();
-  const response = await fetch(`${API_URL}/instances${query ? `?${query}` : ""}`);
-  if (!response.ok) throw new Error(`Failed to fetch instances: ${response.status}`);
-  return response.json();
+  return fetchJson<InstancesResponse>(`${API_URL}/instances${query ? `?${query}` : ""}`);
 }
 
 export async function fetchIntegrityCheck(params?: {
@@ -38,9 +53,7 @@ export async function fetchIntegrityCheck(params?: {
   if (params?.address) search.set("address", params.address);
 
   const query = search.toString();
-  const response = await fetch(`${API_URL}/integrity-check${query ? `?${query}` : ""}`);
-  if (!response.ok) throw new Error(`Failed to fetch integrity check: ${response.status}`);
-  return response.json();
+  return fetchJson<IntegrityCheckResponse>(`${API_URL}/integrity-check${query ? `?${query}` : ""}`);
 }
 
 export async function fetchDeploymentEvents(params: {
@@ -57,28 +70,20 @@ export async function fetchDeploymentEvents(params: {
   if (params.chains && params.chains.length > 0) search.set("chains", params.chains.join(","));
   if (params.txHash) search.set("tx_hash", params.txHash);
 
-  const response = await fetch(`${API_URL}/deployment-events?${search.toString()}`);
-  if (!response.ok) throw new Error(`Failed to fetch deployment events: ${response.status}`);
-  return response.json();
+  return fetchJson<PaginatedDeploymentEventsResponse>(`${API_URL}/deployment-events?${search.toString()}`);
 }
 
 export async function fetchBuildFreshness(contract: string): Promise<{ stale: boolean }> {
-  const response = await fetch(`${API_URL}/build-freshness?contract=${encodeURIComponent(contract)}`);
-  if (!response.ok) throw new Error(`Failed to fetch build freshness: ${response.status}`);
-  return response.json();
+  return fetchJson<{ stale: boolean }>(`${API_URL}/build-freshness?contract=${encodeURIComponent(contract)}`);
 }
 
 export async function recompile(): Promise<{ success: boolean; log: string }> {
-  const response = await fetch(`${API_URL}/recompile`, { method: "POST" });
-  if (!response.ok) throw new Error(`Failed to recompile: ${response.status}`);
-  return response.json();
+  return fetchJson<{ success: boolean; log: string }>(`${API_URL}/recompile`, { method: "POST" });
 }
 
 export async function fetchFunctions(chain: number, address: string, contract: string): Promise<FunctionInfo[]> {
   const search = new URLSearchParams({ chain: String(chain), address, contract });
-  const response = await fetch(`${API_URL}/functions?${search.toString()}`);
-  if (!response.ok) throw new Error(`Failed to fetch functions: ${response.status}`);
-  return response.json();
+  return fetchJson<FunctionInfo[]>(`${API_URL}/functions?${search.toString()}`);
 }
 
 export async function callFunction(params: {
@@ -88,13 +93,11 @@ export async function callFunction(params: {
   function_name: string;
   args: string[];
 }): Promise<{ result?: string[]; error?: string }> {
-  const response = await fetch(`${API_URL}/call-function`, {
+  return fetchJson<{ result?: string[]; error?: string }>(`${API_URL}/call-function`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   });
-  if (!response.ok) throw new Error(`Failed to call function: ${response.status}`);
-  return response.json();
 }
 
 export async function fetchBalances(params: {
@@ -110,13 +113,9 @@ export async function fetchBalances(params: {
   if (params.address) search.set("address", params.address);
 
   const query = search.toString();
-  const response = await fetch(`${API_URL}/balances${query ? `?${query}` : ""}`);
-  if (!response.ok) throw new Error(`Failed to fetch balances: ${response.status}`);
-  return response.json();
+  return fetchJson<BalanceResult[]>(`${API_URL}/balances${query ? `?${query}` : ""}`);
 }
 
 export async function fetchChains(): Promise<ChainInfo[]> {
-  const response = await fetch(`${API_URL}/chains`);
-  if (!response.ok) throw new Error(`Failed to fetch chains: ${response.status}`);
-  return response.json();
+  return fetchJson<ChainInfo[]>(`${API_URL}/chains`);
 }

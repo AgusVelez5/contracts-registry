@@ -68,6 +68,8 @@ Once the file's in place, just run `contracts-registry` from that same folder.
 - **Bytecode match** — compares the bytecode actually deployed on-chain against what your local build produces, so you know if what's live matches your current source. Runs automatically, cached for 24 hours, with a per-row button to force a fresh check.
 - **Interact** — call any read function on a deployed instance directly from the UI, against whichever chain you pick.
 
+See [Scope & Limitations](docs/SCOPE.md) for exactly what's supported today across each feature.
+
 ## Troubleshooting
 
 **"Could not find or read 'registry.config.json'"**

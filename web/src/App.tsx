@@ -3,25 +3,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { 
   HomePage, 
   DeploymentEventsPage, 
-  ContractProfilePage, 
+  ContractProfilePage,
+  ChainProfilePage,
   DeploymentDetailPage,
   NotFoundPage,
 } from "./pages";
 import Toast from "./components/ui/Toast";
 import Footer from "./components/Footer";
-import { useChains } from "./utils/queries";
-import { setExplorerUrls } from "./utils/chains";
-import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { data: chains } = useChains();
-
-  useEffect(() => {
-    if (chains) setExplorerUrls(chains);
-  }, [chains]);
-
   return (
     <div className="app">
       <Routes>
@@ -29,6 +21,7 @@ function AppRoutes() {
         <Route path="/deployment-events" element={<DeploymentEventsPage />} />
         <Route path="/contract/:name" element={<ContractProfilePage />} />
         <Route path="/contract/:name/deployment/:txHash" element={<DeploymentDetailPage />} />
+        <Route path="/chain/:chainId" element={<ChainProfilePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
 

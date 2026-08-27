@@ -1,44 +1,62 @@
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
   useInstances,
   useIntegrityCheck,
   useBalances,
-  useBuildFreshness,
-  useRecompileMutation,
   useRecheckInstanceMutation,
+  useChains,
 } from "../utils/queries";
 import type { ContractInstance } from "../utils/types";
-import { formatBalance } from "../utils/format";
+import { formatBalance, formatWei } from "../utils/format";
 import { getExplorerUrl } from "../utils/chains";
 import DeploymentEventsView from "../components/contracts/DeploymentEventsView";
 import HistoricalInstancesView from "../components/contracts/HistoricalInstancesView";
-import ContractInteract from "../components/contracts/ContractInteract";
 import CollapsibleSection from "../components/ui/CollapsibleSection";
 import LoadingState from "../components/ui/LoadingState";
 import ErrorState from "../components/ui/ErrorState";
 import EmptyState from "../components/ui/EmptyState";
-import styles from "./ContractProfilePage.module.css";
+import styles from "./ChainProfilePage.module.css";
 import { getCurrentInstances } from "../utils/instances";
 import CopyableText from "../components/ui/CopyableText";
 import { ExternalLinkIcon } from "../components/ui/icons";
 import { RecheckButton } from "../components/ui/RecheckButton";
 import { BYTECODE_MATCH_TOOLTIP, getBytecodeMatchStatus } from "../utils/integrity";
 
-function ContractProfilePage() {
-  const { name } = useParams<{ name: string }>();
-  const [searchParams] = useSearchParams();
-  const chainParam = searchParams.get("chain");
-  const initialChain = chainParam ? Number(chainParam) : undefined;
+function formatTotalBalance(
+  instances: ContractInstance[],
+  findBalance: (instance: ContractInstance) => { balance_wei: string | null; error: string | null } | undefined
+): string {
+  let hasError = false;
 
-  const { data: instances, isLoading, error } = useInstances({ contract: name });
+  const total = instances.reduce((acc, item) => {
+    const balance = findBalance(item);
+    if (!balance || balance.balance_wei === null) {
+      if (balance?.error) hasError = true;
+      return acc;
+    }
+    return acc + BigInt(balance.balance_wei);
+  }, 0n);
+
+  const formatted = formatWei(total);
+  return hasError ? `${formatted} (partial)` : formatted;
+}
+
+function ChainProfilePage() {
+  const { chainId } = useParams<{ chainId: string }>();
+  const chain = chainId ? Number(chainId) : undefined;
+
+  const { data: instances, isLoading, error } = useInstances({
+    chains: chain ? [chain] : undefined,
+  });
   const { data: integrityCheck } = useIntegrityCheck();
-  const { data: balances = [] } = useBalances();
-  const { data: buildFreshness } = useBuildFreshness(name ?? "");
-  const recompileMutation = useRecompileMutation();
+  const { data: balances = [] } = useBalances({ chains: chain ? [chain] : undefined });
+  const { data: chains = [] } = useChains();
   const recheckMutation = useRecheckInstanceMutation();
 
+  const chainInfo = chains.find((c) => c.chain === chain);
+
   const allInstances: ContractInstance[] = instances?.items ?? [];
-  const contractInstances: ContractInstance[] = getCurrentInstances(allInstances);
+  const currentInstances: ContractInstance[] = getCurrentInstances(allInstances);
 
   const integrityResults = integrityCheck ? Object.values(integrityCheck).flat() : [];
 
@@ -63,7 +81,7 @@ function ContractProfilePage() {
     );
   }
 
-  if (isLoading || !instances || !name) {
+  if (isLoading || !instances || !chain) {
     return (
       <div>
         <Link to="/">← Back to overview</Link>
@@ -72,14 +90,14 @@ function ContractProfilePage() {
     );
   }
 
-  if (contractInstances.length === 0) {
+  if (currentInstances.length === 0) {
     return (
       <div>
         <Link to="/">← Back to overview</Link>
-        <h2>{name} Contract</h2>
+        <h2>Chain {chain}</h2>
         <EmptyState
-          message={`No current instances found for ${name}.`}
-          hint="This contract may only have historical deployments, or hasn't been deployed successfully yet."
+          message={`No current instances found on chain ${chain}.`}
+          hint="This chain may only have historical deployments, or none yet."
         />
       </div>
     );
@@ -88,26 +106,24 @@ function ContractProfilePage() {
   return (
     <div>
       <Link to="/">← Back to overview</Link>
-      <h2>{name} Contract</h2>
+      <h2>Chain {chain}</h2>
 
-      <div className={styles.profileActions}>
-        <button
-          className="btn-secondary"
-          onClick={() => recompileMutation.mutate()}
-          disabled={recompileMutation.isPending || !buildFreshness?.stale}
-        >
-          {recompileMutation.isPending ? "Recompiling..." : "Recompile"}
-        </button>
-        {buildFreshness?.stale && (
-          <span className={styles.stalenessBadge}>⚠ source modified since last build</span>
+      <div className={styles.chainMeta}>
+        <span className={styles.metaItem}>
+          Total balance: {formatTotalBalance(currentInstances, findBalance)}
+        </span>
+        {chainInfo?.explorer_url && (
+          <a href={chainInfo.explorer_url} target="_blank" rel="noopener noreferrer" className={styles.metaItem}>
+            View explorer <ExternalLinkIcon />
+          </a>
         )}
       </div>
 
-      <CollapsibleSection title="Current instances" count={contractInstances.length}>
-        <table className={`data-table ${styles.profileTable}`}>
+      <CollapsibleSection title="Current instances" count={currentInstances.length}>
+        <table className={`data-table ${styles.chainTable}`}>
           <thead>
             <tr>
-              <th>Chain</th>
+              <th>Contract</th>
               <th>Address</th>
               <th title={BYTECODE_MATCH_TOOLTIP}>Bytecode match</th>
               <th>Balance</th>
@@ -115,7 +131,7 @@ function ContractProfilePage() {
             </tr>
           </thead>
           <tbody>
-            {contractInstances.map((instance, i) => {
+            {currentInstances.map((instance, i) => {
               const result = findIntegrityResult(instance);
               const balance = findBalance(instance);
               const { 
@@ -132,14 +148,13 @@ function ContractProfilePage() {
               return (
                 <tr key={i}>
                   <td>
-                    <Link to={`/chain/${instance.chain}`}>{instance.chain}</Link>
+                    <Link to={`/contract/${instance.contract_name}?chain=${instance.chain}`}>
+                      {instance.contract_name}
+                    </Link>
                   </td>
                   <td>
                     <div className="address-cell-inner">
-                      <CopyableText
-                        value={instance.address}
-                        display={instance.address}
-                      />
+                      <CopyableText value={instance.address} display={instance.address} />
                       {url && (
                         <a href={url} target="_blank" rel="noopener noreferrer" title="View on explorer">
                           <ExternalLinkIcon />
@@ -175,18 +190,14 @@ function ContractProfilePage() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Historical instances" defaultOpen={false}>
-        <HistoricalInstancesView filter={name} />
+        <HistoricalInstancesView lockedChain={chain} />
       </CollapsibleSection>
 
       <CollapsibleSection title="Deployment history">
-        <DeploymentEventsView filter={name} linkToProfile={false} />
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Interact">
-        <ContractInteract contractInstances={contractInstances} initialChain={initialChain} />
+        <DeploymentEventsView lockedChain={chain} />
       </CollapsibleSection>
     </div>
   );
 }
 
-export default ContractProfilePage;
+export default ChainProfilePage;

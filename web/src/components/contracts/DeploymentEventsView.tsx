@@ -12,6 +12,7 @@ import styles from "./DeploymentEventsView.module.css";
 interface DeploymentEventsViewProps {
   filter?: string;
   linkToProfile?: boolean;
+  lockedChain?: number;
 }
 
 function calculateGasCost(event: DeploymentEvent): string {
@@ -20,21 +21,27 @@ function calculateGasCost(event: DeploymentEvent): string {
   return formatWei(cost);
 }
 
-function DeploymentEventsView({ filter = "", linkToProfile = true }: DeploymentEventsViewProps) {
+function DeploymentEventsView({ filter = "", linkToProfile = true, lockedChain }: DeploymentEventsViewProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [activeChains, setActiveChains] = useState<number[]>([]);
+
+  const effectiveChains = lockedChain ? [lockedChain] : activeChains;
 
   const { data, error, isLoading } = useDeploymentEvents({
     page,
     pageSize,
     contract: filter,
-    chains: activeChains,
+    chains: effectiveChains,
   });
+
+  const headers = lockedChain
+    ? ["Contract", "Transaction", "Address", "Gas Cost", "When", ""]
+    : ["Contract", "Chain", "Transaction", "Address", "Gas Cost", "When", ""];
 
   return (
     <PaginatedTable
-      headers={["Contract", "Chain", "Transaction", "Address", "Gas Cost", "When", ""]}
+      headers={headers}
       items={data?.items ?? []}
       total={data?.total ?? 0}
       page={page}
@@ -46,8 +53,9 @@ function DeploymentEventsView({ filter = "", linkToProfile = true }: DeploymentE
       onChainsChange={setActiveChains}
       isLoading={isLoading}
       error={error}
-      tableClassName={`data-table ${styles.historyTable}`}
+      tableClassName={`data-table ${lockedChain ? styles.historyTableLocked : styles.historyTable}`}
       emptyMessage="No deployment events found."
+      lockedChain={lockedChain}
       renderRow={(event, i) => {
         const failed = event.status !== null && event.status !== "0x1";
         const txUrl = getExplorerTxUrl(event.chain, event.tx_hash);
@@ -62,7 +70,7 @@ function DeploymentEventsView({ filter = "", linkToProfile = true }: DeploymentE
                 event.contract_name
               )}
             </td>
-            <td>{event.chain}</td>
+            {!lockedChain && <td>{event.chain}</td>}
             <td className={styles.addressCell}>
               <div className="address-cell-inner">
                 <CopyableText value={event.tx_hash} display={truncateMiddle(event.tx_hash)} />

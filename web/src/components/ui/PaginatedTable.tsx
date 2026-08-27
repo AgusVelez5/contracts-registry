@@ -22,6 +22,7 @@ interface PaginatedTableProps<T> {
   error?: Error | null;
   tableClassName?: string;
   emptyMessage?: string;
+  lockedChain?: number;
 }
 
 function PaginatedTable<T>({
@@ -40,6 +41,7 @@ function PaginatedTable<T>({
   error,
   tableClassName = "data-table",
   emptyMessage = "No results found.",
+  lockedChain,
 }: PaginatedTableProps<T>) {
   if (error) return <ErrorState message={error.message} />;
   if (isLoading) return <LoadingState />;
@@ -58,10 +60,12 @@ function PaginatedTable<T>({
     onChainsChange([]);
   };
 
+  const showChips = !lockedChain && availableChains.length > 1;
+
   if (total === 0) {
     return (
       <div className={styles.paginatedTable}>
-        {availableChains.length > 1 && (
+        {showChips && (
           <ChainChips
             availableChains={availableChains}
             activeChains={activeChains}
@@ -76,7 +80,7 @@ function PaginatedTable<T>({
 
   return (
     <div className={styles.paginatedTable}>
-      {availableChains.length > 1 && (
+      {showChips && (
         <ChainChips
           availableChains={availableChains}
           activeChains={activeChains}

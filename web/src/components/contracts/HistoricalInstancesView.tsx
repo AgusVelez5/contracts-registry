@@ -9,16 +9,23 @@ import styles from "./HistoricalInstancesView.module.css";
 
 interface HistoricalInstancesViewProps {
   filter?: string;
+  lockedChain?: number;
 }
 
-function HistoricalInstancesView({ filter }: HistoricalInstancesViewProps) {
+function HistoricalInstancesView({ filter, lockedChain }: HistoricalInstancesViewProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [activeChains, setActiveChains] = useState<number[]>([]);
 
+  const effectiveChains = lockedChain
+    ? [lockedChain]
+    : activeChains.length > 0
+    ? activeChains
+    : undefined;
+
   const { data, isLoading, error } = useInstances({
     contract: filter,
-    chains: activeChains.length > 0 ? activeChains : undefined,
+    chains: effectiveChains,
     page,
     pageSize,
     excludeCurrent: true,
@@ -30,9 +37,13 @@ function HistoricalInstancesView({ filter }: HistoricalInstancesViewProps) {
     return balances.find((b) => b.chain === chain && b.address.toLowerCase() === address.toLowerCase());
   }
 
+  const headers = lockedChain
+    ? ["Contract", "Address", "Balance", "Deployed"]
+    : ["Chain", "Address", "Balance", "Deployed"];
+
   return (
     <PaginatedTable
-      headers={["Chain", "Address", "Balance", "Deployed"]}
+      headers={headers}
       items={data?.items ?? []}
       total={data?.total ?? 0}
       page={page}
@@ -46,13 +57,14 @@ function HistoricalInstancesView({ filter }: HistoricalInstancesViewProps) {
       error={error}
       tableClassName={`data-table ${styles.historicalTable}`}
       emptyMessage="No historical instances found."
+      lockedChain={lockedChain}
       renderRow={(instance, i) => {
         const url = getExplorerUrl(instance.chain, instance.address);
         const balance = findBalance(instance.chain, instance.address);
 
         return (
           <tr key={i}>
-            <td>{instance.chain}</td>
+            <td>{lockedChain ? instance.contract_name : instance.chain}</td>
             <td>
               <div className="address-cell-inner">
                 <CopyableText value={instance.address} display={instance.address} />

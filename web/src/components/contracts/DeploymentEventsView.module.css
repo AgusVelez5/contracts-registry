@@ -10,6 +10,17 @@
 .historyTable th:nth-child(6) { width: 100px; }
 .historyTable th:nth-child(7) { width: 40px; }
 
+.historyTableLocked {
+  table-layout: fixed;
+}
+
+.historyTableLocked th:nth-child(1) { width: 90px; }
+.historyTableLocked th:nth-child(2) { width: 220px; }
+.historyTableLocked th:nth-child(3) { width: 220px; }
+.historyTableLocked th:nth-child(4) { width: 90px; }
+.historyTableLocked th:nth-child(5) { width: 100px; }
+.historyTableLocked th:nth-child(6) { width: 40px; }
+
 .failedRow {
   background: rgba(240, 101, 75, 0.06);
 }

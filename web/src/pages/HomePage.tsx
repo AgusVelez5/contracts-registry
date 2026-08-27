@@ -18,11 +18,9 @@ import ErrorState from "../components/ui/ErrorState";
 import LoadingState from "../components/ui/LoadingState";
 import EmptyState from "../components/ui/EmptyState";
 import SiteNav from "../components/SiteNav";
+import { BYTECODE_MATCH_TOOLTIP, getBytecodeMatchStatus } from "../utils/integrity";
 
 type GroupBy = "contract" | "chain";
-
-const BYTECODE_MATCH_TOOLTIP =
-  "Compares the on-chain bytecode against your local build. A mismatch usually means your local source doesn't match what's deployed.";
 
 function groupInstances(rows: ContractInstance[], groupBy: GroupBy): Record<string, ContractInstance[]> {
   const key = groupBy === "contract" ? "contract_name" : "chain";
@@ -142,7 +140,9 @@ function HomePage() {
                       {groupKey}
                     </Link>
                   ) : (
-                    groupKey
+                    <Link to={`/chain/${groupKey}`} onClick={(e) => e.stopPropagation()}>
+                      {groupKey}
+                    </Link>
                   )}
                 </td>
                 <td className={styles.count}>{items.length}</td>
@@ -169,20 +169,11 @@ function HomePage() {
               {expandedGroups.has(groupKey) &&
                 items.map((item, i) => {
                   const result = findIntegrityResult(item);
-                  const statusClass = !result
-                    ? "status-pending"
-                    : result.matches === null
-                    ? "status-unknown"
-                    : result.matches
-                    ? "status-ok"
-                    : "status-fail";
-                  const statusText = !result
-                    ? "not checked"
-                    : result.matches === null
-                    ? "⚠ not verifiable"
-                    : result.matches
-                    ? "✓ matches"
-                    : "✕ mismatch";
+                  const { 
+                    className: statusClass, 
+                    text: statusText, 
+                    tooltip: statusTooltip 
+                  } = getBytecodeMatchStatus(result);
                   const balance = findBalance(item);
                   const detailColSpan = groupBy === "chain" ? 3 : 2;
                   const explorerUrl = getExplorerUrl(item.chain, item.address);
@@ -197,7 +188,11 @@ function HomePage() {
                       <td colSpan={detailColSpan}>
                         <div className={styles.instanceRowGrid}>
                           <span className={styles.instanceContext}>
-                            {groupBy === "contract" ? item.chain : item.contract_name}
+                            {groupBy === "contract" ? (
+                              <Link to={`/chain/${item.chain}`}>{item.chain}</Link>
+                            ) : (
+                              item.contract_name
+                            )}
                           </span>
 
                           <span className={styles.instanceAddressCell}>
@@ -209,7 +204,7 @@ function HomePage() {
                             )}
                           </span>
 
-                          <span title={result?.reason ?? BYTECODE_MATCH_TOOLTIP}>
+                          <span title={result?.reason ?? statusTooltip}>
                             <span className={statusClass}>{statusText}</span>
                           </span>
 

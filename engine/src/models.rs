@@ -33,9 +33,19 @@ pub struct BroadcastFile {
     pub timestamp: u64,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct BytecodeRange {
+    pub start: usize,
+    pub length: usize,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct DeployedBytecode {
     pub object: String,
+    #[serde(rename = "immutableReferences", default)]
+    pub immutable_references: HashMap<String, Vec<BytecodeRange>>,
+    #[serde(rename = "linkReferences", default)]
+    pub link_references: HashMap<String, HashMap<String, Vec<BytecodeRange>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,7 +84,8 @@ pub struct OnChainBytecodeIntegrityResult {
     pub contract_name: String,
     pub address: String,
     pub chain: u64,
-    pub matches: bool,
+    pub matches: Option<bool>,
+    pub reason: Option<String>,
     pub verified_at: u64,
 }
 

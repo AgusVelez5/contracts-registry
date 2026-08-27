@@ -171,11 +171,15 @@ function HomePage() {
                   const result = findIntegrityResult(item);
                   const statusClass = !result
                     ? "status-pending"
+                    : result.matches === null
+                    ? "status-unknown"
                     : result.matches
                     ? "status-ok"
                     : "status-fail";
                   const statusText = !result
                     ? "not checked"
+                    : result.matches === null
+                    ? "⚠ not verifiable"
                     : result.matches
                     ? "✓ matches"
                     : "✕ mismatch";
@@ -205,7 +209,7 @@ function HomePage() {
                             )}
                           </span>
 
-                          <span title={BYTECODE_MATCH_TOOLTIP}>
+                          <span title={result?.reason ?? BYTECODE_MATCH_TOOLTIP}>
                             <span className={statusClass}>{statusText}</span>
                           </span>
 

@@ -10,7 +10,8 @@ const STALE_THRESHOLD_MS: u64 = 24 * 60 * 60 * 1000; // 24 hours
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedIntegrityResult {
     pub contract_name: String,
-    pub matches: bool,
+    pub matches: Option<bool>,
+    pub reason: Option<String>,
     pub verified_at: u64,
 }
 
@@ -59,6 +60,7 @@ impl IntegrityCache {
             CachedIntegrityResult {
                 contract_name: result.contract_name.clone(),
                 matches: result.matches,
+                reason: result.reason.clone(),
                 verified_at: result.verified_at,
             },
         );

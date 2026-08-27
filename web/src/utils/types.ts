@@ -34,7 +34,8 @@ export interface OnChainBytecodeIntegrityResult {
   contract_name: string;
   address: string;
   chain: number;
-  matches: boolean;
+  matches: boolean | null;
+  reason: string | null;
   verified_at: number;
 }
 

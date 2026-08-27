@@ -125,6 +125,10 @@ a.address:hover {
 .status-ok { color: var(--ok); }
 .status-fail { color: var(--fail); }
 .status-pending { color: var(--pending); }
+.status-unknown {
+  color: var(--pending);
+  opacity: 0.75;
+}
 
 .placeholder-text {
   color: var(--text-muted);

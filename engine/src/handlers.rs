@@ -15,7 +15,7 @@ use crate::models::{
 };
 use crate::pagination::{Paginated, paginate};
 use crate::parsing::{group_by_contract, load_all_instances, load_deployment_events, find_artifact_for_contract, filter_current};
-use crate::verification::check_onchain_bytecode_integrity;
+use crate::verification::{check_onchain_bytecode_integrity, IntegrityOutcome};
 use crate::errors::AppError;
 use crate::cache::IntegrityCache;
 
@@ -90,8 +90,6 @@ pub async fn integrity_check_handler(
     let instances = load_all_instances(&config.broadcast_path, &config.out_path)?;
     let mut current = filter_current(instances);
 
-    // A targeted recheck (specific chain+address) always bypasses the cache —
-    // that's the whole point of the manual per-row recheck button.
     let is_targeted_recheck = query.chain.is_some() || query.address.is_some();
 
     if let Some(chain) = query.chain {
@@ -117,13 +115,38 @@ pub async fn integrity_check_handler(
                         address: instance.address.clone(),
                         chain: instance.chain,
                         matches: entry.matches,
+                        reason: entry.reason.clone(),
                         verified_at: entry.verified_at,
                     }
                 }
                 _ => {
                     let rpc_url = config.rpc_url(instance.chain);
-                    let fresh = check_onchain_bytecode_integrity(instance, &artifact, rpc_url).await;
-                    cache.put(instance.chain, &instance.address, &fresh);
+                    let (outcome, verified_at) =
+                        check_onchain_bytecode_integrity(instance, &artifact, rpc_url).await;
+
+                    let (matches, reason) = match &outcome {
+                        IntegrityOutcome::Matches => (Some(true), None),
+                        IntegrityOutcome::Mismatches => (Some(false), None),
+                        IntegrityOutcome::NotSupported(msg) => (None, Some(msg.clone())),
+                        IntegrityOutcome::Failed(msg) => (None, Some(msg.clone())),
+                    };
+
+                    let fresh = OnChainBytecodeIntegrityResult {
+                        contract_name: contract_name.clone(),
+                        address: instance.address.clone(),
+                        chain: instance.chain,
+                        matches,
+                        reason,
+                        verified_at,
+                    };
+
+                    // Only persist real/permanent outcomes — a transient failure
+                    // (RPC down, forge couldn't run) shouldn't overwrite a
+                    // previously cached good result.
+                    if !matches!(outcome, IntegrityOutcome::Failed(_)) {
+                        cache.put(instance.chain, &instance.address, &fresh);
+                    }
+
                     fresh
                 }
             };

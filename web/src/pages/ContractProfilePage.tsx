@@ -120,8 +120,20 @@ function ContractProfilePage() {
             {contractInstances.map((instance, i) => {
               const result = findIntegrityResult(instance);
               const balance = findBalance(instance);
-              const statusClass = !result ? "status-pending" : result.matches ? "status-ok" : "status-fail";
-              const statusText = !result ? "not checked" : result.matches ? "✓ matches" : "✕ mismatch";
+              const statusClass = !result
+                ? "status-pending"
+                : result.matches === null
+                ? "status-unknown"
+                : result.matches
+                ? "status-ok"
+                : "status-fail";
+              const statusText = !result
+                ? "not checked"
+                : result.matches === null
+                ? "⚠ not verifiable"
+                : result.matches
+                ? "✓ matches"
+                : "✕ mismatch";
               const url = getExplorerUrl(instance.chain, instance.address);
               const isThisRowPending =
                 recheckMutation.isPending &&
@@ -144,7 +156,7 @@ function ContractProfilePage() {
                       )}
                     </div>
                   </td>
-                  <td title={BYTECODE_MATCH_TOOLTIP}>
+                  <td title={result?.reason ?? BYTECODE_MATCH_TOOLTIP}>
                     <span className={statusClass}>{statusText}</span>
                   </td>
                   <td>

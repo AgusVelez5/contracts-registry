@@ -134,3 +134,9 @@
 .instanceRowGrid :global(.icon-button):hover:not(:disabled) {
   color: var(--accent);
 }
+
+.groupNameCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

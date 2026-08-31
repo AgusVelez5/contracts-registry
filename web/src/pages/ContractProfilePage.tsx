@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   useInstances,
@@ -6,8 +7,10 @@ import {
   useBuildFreshness,
   useRecompileMutation,
   useRecheckInstanceMutation,
+  useProxyInfo,
+  useContractFamily,
 } from "../utils/queries";
-import type { ContractInstance } from "../utils/types";
+import type { ContractInstance, ProxyInfo } from "../utils/types";
 import { formatBalance } from "../utils/format";
 import { getExplorerUrl } from "../utils/chains";
 import DeploymentEventsView from "../components/contracts/DeploymentEventsView";
@@ -30,15 +33,43 @@ function ContractProfilePage() {
   const chainParam = searchParams.get("chain");
   const initialChain = chainParam ? Number(chainParam) : undefined;
 
-  const { data: instances, isLoading, error } = useInstances({ contract: name });
+  const { data: familyNames, isLoading: familyLoading, error: familyError } = useContractFamily(name);
+  const familyFilter = useMemo(() => familyNames?.join(","), [familyNames]);
+
+  const { data: instances, isLoading, error } = useInstances({
+    contract: familyFilter,
+    exact: true,
+    enabled: !!familyFilter,
+  });
   const { data: integrityCheck } = useIntegrityCheck();
   const { data: balances = [] } = useBalances();
   const { data: buildFreshness } = useBuildFreshness(name ?? "");
+  const { data: proxyInfo } = useProxyInfo();
   const recompileMutation = useRecompileMutation();
   const recheckMutation = useRecheckInstanceMutation();
 
   const allInstances: ContractInstance[] = instances?.items ?? [];
   const contractInstances: ContractInstance[] = getCurrentInstances(allInstances);
+
+  function findProxyInfo(instance: ContractInstance): ProxyInfo | undefined {
+    return proxyInfo?.[`${instance.chain}:${instance.address.toLowerCase()}`];
+  }
+
+  // A single contract concept can have multiple real instances sharing a
+  // chain (a proxy + a standalone deployment) after the identity merge — show
+  // one row per chain, preferring the proxy since its row already surfaces
+  // both the proxy and implementation addresses.
+  const instancesByChain = useMemo(() => {
+    const map = new Map<number, ContractInstance>();
+    for (const instance of contractInstances) {
+      const existing = map.get(instance.chain);
+      const isProxy = findProxyInfo(instance)?.is_proxy;
+      if (!existing || isProxy) {
+        map.set(instance.chain, instance);
+      }
+    }
+    return Array.from(map.values());
+  }, [contractInstances, proxyInfo]);
 
   const integrityResults = integrityCheck ? Object.values(integrityCheck).flat() : [];
 
@@ -54,16 +85,16 @@ function ContractProfilePage() {
     );
   }
 
-  if (error) {
+  if (error || familyError) {
     return (
       <div>
         <Link to="/">← Back to overview</Link>
-        <ErrorState message={error.message} />
+        <ErrorState message={(error ?? familyError)!.message} />
       </div>
     );
   }
 
-  if (isLoading || !instances || !name) {
+  if (familyLoading || isLoading || !instances || !name) {
     return (
       <div>
         <Link to="/">← Back to overview</Link>
@@ -85,10 +116,31 @@ function ContractProfilePage() {
     );
   }
 
+  const isUpgradeableContract = contractInstances.some((i) => findProxyInfo(i)?.is_proxy);
+
+  const untrackedImplementationInstances = contractInstances.filter((i) => {
+    const info = findProxyInfo(i);
+    return info?.is_proxy && !info.implementation_contract_name;
+  });
+
   return (
     <div>
       <Link to="/">← Back to overview</Link>
       <h2>{name} Contract</h2>
+
+      {untrackedImplementationInstances.length > 0 && (
+        <div className={styles.proxyWarning}>
+          ⚠ This contract is a proxy on{" "}
+          {untrackedImplementationInstances.map((i, idx) => (
+            <span key={i.chain}>
+              {idx > 0 && ", "}
+              chain {i.chain} (pointing to {findProxyInfo(i)?.implementation_address})
+            </span>
+          ))}
+          , which isn't tracked as a deployed contract in this project — bytecode
+          verification and Interact aren't available for {untrackedImplementationInstances.length > 1 ? "those instances" : "that instance"}.
+        </div>
+      )}
 
       <div className={styles.profileActions}>
         <button
@@ -103,27 +155,38 @@ function ContractProfilePage() {
         )}
       </div>
 
-      <CollapsibleSection title="Current instances" count={contractInstances.length}>
-        <table className={`data-table ${styles.profileTable}`}>
+      <CollapsibleSection title="Current instances" count={instancesByChain.length}>
+        <table className={`data-table ${isUpgradeableContract ? styles.profileTableUpgradeable : styles.profileTable}`}>
           <thead>
             <tr>
               <th>Chain</th>
-              <th>Address</th>
+              {isUpgradeableContract ? (
+                <>
+                  <th>Proxy Address</th>
+                  <th>Implementation Address</th>
+                </>
+              ) : (
+                <th>Address</th>
+              )}
               <th title={BYTECODE_MATCH_TOOLTIP}>Bytecode match</th>
               <th>Balance</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {contractInstances.map((instance, i) => {
+            {instancesByChain.map((instance, i) => {
               const result = findIntegrityResult(instance);
               const balance = findBalance(instance);
-              const { 
-                className: statusClass, 
-                text: statusText, 
-                tooltip: statusTooltip 
+              const {
+                className: statusClass,
+                text: statusText,
+                tooltip: statusTooltip
               } = getBytecodeMatchStatus(result);
               const url = getExplorerUrl(instance.chain, instance.address);
+              const info = findProxyInfo(instance);
+              const implementationUrl = info?.implementation_address
+                ? getExplorerUrl(instance.chain, info.implementation_address)
+                : null;
               const isThisRowPending =
                 recheckMutation.isPending &&
                 recheckMutation.variables?.chain === instance.chain &&
@@ -134,19 +197,59 @@ function ContractProfilePage() {
                   <td>
                     <Link to={`/chain/${instance.chain}`}>{instance.chain}</Link>
                   </td>
-                  <td>
-                    <div className="address-cell-inner">
-                      <CopyableText
-                        value={instance.address}
-                        display={instance.address}
-                      />
-                      {url && (
-                        <a href={url} target="_blank" rel="noopener noreferrer" title="View on explorer">
-                          <ExternalLinkIcon />
-                        </a>
-                      )}
-                    </div>
-                  </td>
+                  {isUpgradeableContract ? (
+                    <>
+                      <td>
+                        {info?.is_proxy ? (
+                          <div className="address-cell-inner">
+                            <CopyableText value={instance.address} display={instance.address} />
+                            {url && (
+                              <a href={url} target="_blank" rel="noopener noreferrer" title="View on explorer">
+                                <ExternalLinkIcon />
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="placeholder-text">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {info?.is_proxy && info.implementation_address ? (
+                          <div className="address-cell-inner">
+                            <CopyableText
+                              value={info.implementation_address}
+                              display={info.implementation_address}
+                            />
+                            {implementationUrl && (
+                              <a href={implementationUrl} target="_blank" rel="noopener noreferrer" title="View on explorer">
+                                <ExternalLinkIcon />
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="address-cell-inner">
+                            <CopyableText value={instance.address} display={instance.address} />
+                            {url && (
+                              <a href={url} target="_blank" rel="noopener noreferrer" title="View on explorer">
+                                <ExternalLinkIcon />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </>
+                  ) : (
+                    <td>
+                      <div className="address-cell-inner">
+                        <CopyableText value={instance.address} display={instance.address} />
+                        {url && (
+                          <a href={url} target="_blank" rel="noopener noreferrer" title="View on explorer">
+                            <ExternalLinkIcon />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   <td title={result?.reason ?? statusTooltip}>
                     <span className={statusClass}>{statusText}</span>
                   </td>
@@ -175,15 +278,15 @@ function ContractProfilePage() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Historical instances" defaultOpen={false}>
-        <HistoricalInstancesView filter={name} />
+        <HistoricalInstancesView filter={familyFilter} />
       </CollapsibleSection>
 
       <CollapsibleSection title="Deployment history">
-        <DeploymentEventsView filter={name} linkToProfile={false} />
+        <DeploymentEventsView filter={familyFilter} linkToProfile={false} exactMatch />
       </CollapsibleSection>
 
       <CollapsibleSection title="Interact">
-        <ContractInteract contractInstances={contractInstances} initialChain={initialChain} />
+        <ContractInteract contractInstances={contractInstances} initialChain={initialChain} proxyInfo={proxyInfo} />
       </CollapsibleSection>
     </div>
   );

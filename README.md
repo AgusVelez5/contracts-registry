@@ -65,10 +65,12 @@ Once the file's in place, just run `contracts-registry` from that same folder.
 - **Contract discovery** — every contract you've successfully deployed is found automatically by scanning `broadcast/` and matching each one to its compiled artifact in `out/`. No need to list your contracts anywhere.
 - **Current vs. historical instances** — the most recent deployment per contract per chain is front and center; every prior deployment stays browsable in its own section.
 - **Deployment history** — a searchable, paginated log of every deployment transaction, with gas cost, status, and a link to the transaction and resulting address.
-- **Bytecode match** — compares the bytecode actually deployed on-chain against what your local build produces, so you know if what's live matches your current source. Runs automatically, cached for 24 hours, with a per-row button to force a fresh check.
+- **Bytecode match** — compares the bytecode actually deployed on-chain against your local build, so you know if what's live matches your current source. Runs automatically, cached for 24 hours, with a per-row button to force a fresh check.
+- **Proxy-aware** — automatically detects upgradeable (proxy) contracts and treats a proxy and its implementation as one contract, not two disconnected entries — including routing bytecode verification and Interact to the right address. See the [Glossary](docs/GLOSSARY.md#upgradeable--proxy) for details.
 - **Interact** — call any read function on a deployed instance directly from the UI, against whichever chain you pick.
 
 See [Scope & Limitations](docs/SCOPE.md) for exactly what's supported today across each feature.
+See [Glossary](docs/GLOSSARY.md) for explanations of terms used across the UI.
 
 ## Troubleshooting
 

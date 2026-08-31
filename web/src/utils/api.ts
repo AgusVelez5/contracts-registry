@@ -5,6 +5,7 @@ import type {
   PaginatedDeploymentEventsResponse,
   IntegrityCheckResponse,
   ChainInfo,
+  ProxyInfo,
 } from "./types";
 
 const API_URL = import.meta.env.DEV ? "http://127.0.0.1:3001/v1" : "/v1";
@@ -32,6 +33,7 @@ export async function fetchInstances(params: {
   page?: number;
   pageSize?: number;
   excludeCurrent?: boolean;
+  exact?: boolean;
 } = {}): Promise<InstancesResponse> {
   const search = new URLSearchParams();
   if (params.contract) search.set("contract", params.contract);
@@ -39,6 +41,7 @@ export async function fetchInstances(params: {
   if (params.page) search.set("page", String(params.page));
   if (params.pageSize) search.set("page_size", String(params.pageSize));
   if (params.excludeCurrent) search.set("exclude_current", "true");
+  if (params.exact) search.set("exact", "true");
 
   const query = search.toString();
   return fetchJson<InstancesResponse>(`${API_URL}/instances${query ? `?${query}` : ""}`);
@@ -62,6 +65,7 @@ export async function fetchDeploymentEvents(params: {
   contract?: string;
   chains?: number[];
   txHash?: string;
+  exact?: boolean;
 }): Promise<PaginatedDeploymentEventsResponse> {
   const search = new URLSearchParams();
   search.set("page", String(params.page));
@@ -69,6 +73,7 @@ export async function fetchDeploymentEvents(params: {
   if (params.contract) search.set("contract", params.contract);
   if (params.chains && params.chains.length > 0) search.set("chains", params.chains.join(","));
   if (params.txHash) search.set("tx_hash", params.txHash);
+  if (params.exact) search.set("exact", "true");
 
   return fetchJson<PaginatedDeploymentEventsResponse>(`${API_URL}/deployment-events?${search.toString()}`);
 }
@@ -118,4 +123,20 @@ export async function fetchBalances(params: {
 
 export async function fetchChains(): Promise<ChainInfo[]> {
   return fetchJson<ChainInfo[]>(`${API_URL}/chains`);
+}
+
+export async function fetchProxyInfo(params?: {
+  chain?: number;
+  address?: string;
+}): Promise<Record<string, ProxyInfo>> {
+  const search = new URLSearchParams();
+  if (params?.chain !== undefined) search.set("chain", String(params.chain));
+  if (params?.address) search.set("address", params.address);
+
+  const query = search.toString();
+  return fetchJson<Record<string, ProxyInfo>>(`${API_URL}/proxy-info${query ? `?${query}` : ""}`);
+}
+
+export async function fetchContractFamily(name: string): Promise<string[]> {
+  return fetchJson<string[]>(`${API_URL}/contract-family?name=${encodeURIComponent(name)}`);
 }

@@ -5,9 +5,11 @@ mod config;
 mod errors;
 mod freshness;
 mod handlers;
+mod identity;
 mod models;
 mod pagination;
 mod parsing;
+mod proxy;
 mod rpc;
 mod verification;
 
@@ -19,7 +21,8 @@ use axum::{
 use handlers::{
     balances_handler, build_freshness_handler, call_function_handler,
     deployment_events_handler, functions_handler, get_instances_handler,
-    integrity_check_handler, recompile_handler, chains_handler
+    integrity_check_handler, recompile_handler, chains_handler,
+    proxy_info_handler, contract_family_handler
 };
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::catch_panic::CatchPanicLayer;
@@ -128,6 +131,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/functions", get(functions_handler))
         .route("/call-function", post(call_function_handler))
         .route("/chains", get(chains_handler))
+        .route("/proxy-info", get(proxy_info_handler))
+        .route("/contract-family", get(contract_family_handler))
         .with_state(app_state);
 
     #[allow(unused_mut)]

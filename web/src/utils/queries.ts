@@ -8,6 +8,8 @@ import {
   recompile,
   fetchFunctions,
   fetchChains,
+  fetchProxyInfo,
+  fetchContractFamily,
 } from "./api";
 import type { IntegrityCheckResponse } from "./types";
 
@@ -17,6 +19,8 @@ export function useInstances(params?: {
   page?: number;
   pageSize?: number;
   excludeCurrent?: boolean;
+  exact?: boolean;
+  enabled?: boolean;
 }) {
   return useQuery({
     queryKey: [
@@ -26,8 +30,10 @@ export function useInstances(params?: {
       params?.page,
       params?.pageSize,
       params?.excludeCurrent,
+      params?.exact,
     ],
     queryFn: () => fetchInstances(params),
+    enabled: params?.enabled ?? true,
   });
 }
 
@@ -93,9 +99,17 @@ export function useDeploymentEvents(params: {
   pageSize: number;
   contract?: string;
   chains?: number[];
+  exact?: boolean;
 }) {
   return useQuery({
-    queryKey: ["deployment-events", params.page, params.pageSize, params.contract, params.chains?.join(",")],
+    queryKey: [
+      "deployment-events",
+      params.page,
+      params.pageSize,
+      params.contract,
+      params.chains?.join(","),
+      params.exact,
+    ],
     queryFn: () => fetchDeploymentEvents(params),
   });
 }
@@ -119,11 +133,11 @@ export function useRecompileMutation() {
   });
 }
 
-export function useFunctions(chain: number, address: string, contract: string) {
+export function useFunctions(chain: number, address: string, contract: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["functions", chain, address, contract],
     queryFn: () => fetchFunctions(chain, address, contract),
-    enabled: !!address && !!contract,
+    enabled: !!address && !!contract && (options?.enabled ?? true),
   });
 }
 
@@ -132,5 +146,21 @@ export function useChains() {
     queryKey: ["chains"],
     queryFn: fetchChains,
     staleTime: Infinity,
+  });
+}
+
+export function useProxyInfo() {
+  return useQuery({
+    queryKey: ["proxy-info"],
+    queryFn: () => fetchProxyInfo(),
+  });
+}
+
+export function useContractFamily(name?: string) {
+  return useQuery({
+    queryKey: ["contract-family", name],
+    queryFn: () => fetchContractFamily(name!),
+    enabled: !!name,
+    staleTime: 5 * 60 * 1000, // 5 minutes — this rarely changes within a session
   });
 }

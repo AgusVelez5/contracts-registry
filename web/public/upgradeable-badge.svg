@@ -1,0 +1,10 @@
+<svg width="128" height="28" viewBox="0 0 128 28" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0.5" y="0.5" width="127" height="27" rx="8" fill="#12161F" stroke="#8B5CF6" stroke-width="1.5"/>
+  <g stroke="#8B5CF6" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 15V7"/>
+    <path d="M8 10L11 7L14 10"/>
+    <path d="M20 19V11"/>
+    <path d="M17 14L20 11L23 14"/>
+  </g>
+  <text x="76" y="18.5" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="600" fill="#8B5CF6" text-anchor="middle">Upgradeable</text>
+</svg>

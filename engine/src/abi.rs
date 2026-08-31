@@ -14,7 +14,7 @@ pub fn get_readable_functions(abi: &JsonAbi) -> Vec<&Function> {
         .collect()
 }
 
-pub fn parse_input(param: &Param, raw_value: &str) -> Result<alloy_dyn_abi::DynSolValue, Box<dyn std::error::Error>> {
+pub fn parse_input(param: &Param, raw_value: &str) -> Result<alloy_dyn_abi::DynSolValue, Box<dyn std::error::Error + Send + Sync>> {
     let sol_type: DynSolType = param.ty.parse()?;
     let value = sol_type.coerce_str(raw_value)?;
     Ok(value)
@@ -46,7 +46,7 @@ pub async fn call_read_function(
     address: &str,
     function: &Function,
     raw_args: &[String],
-) -> Result<Vec<alloy_dyn_abi::DynSolValue>, Box<dyn std::error::Error>> {
+) -> Result<Vec<alloy_dyn_abi::DynSolValue>, Box<dyn std::error::Error + Send + Sync>> {
     let mut values = Vec::new();
     for (param, raw) in function.inputs.iter().zip(raw_args) {
         values.push(parse_input(param, raw)?);

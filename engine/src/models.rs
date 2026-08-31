@@ -87,6 +87,7 @@ pub struct OnChainBytecodeIntegrityResult {
     pub matches: Option<bool>,
     pub reason: Option<String>,
     pub verified_at: u64,
+    pub verified_against: Option<VerifiedAgainst>,
 }
 
 #[derive(Serialize)]
@@ -149,4 +150,18 @@ pub struct ArtifactMetadata {
 pub struct ChainInfo {
     pub chain: u64,
     pub explorer_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyInfo {
+    pub is_proxy: bool,
+    pub implementation_address: Option<String>,
+    pub implementation_contract_name: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerifiedAgainst {
+    pub contract_name: String,
+    pub address: String,
 }

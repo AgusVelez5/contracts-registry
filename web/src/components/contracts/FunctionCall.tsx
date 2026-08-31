@@ -6,9 +6,10 @@ import styles from "./FunctionCall.module.css";
 interface FunctionCallProps {
   func: FunctionInfo;
   instance: ContractInstance;
+  abiContractName?: string;
 }
 
-function FunctionCall({ func, instance }: FunctionCallProps) {
+function FunctionCall({ func, instance, abiContractName }: FunctionCallProps) {
   const [args, setArgs] = useState<string[]>(func.inputs.map(() => ""));
   const [result, setResult] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ function FunctionCall({ func, instance }: FunctionCallProps) {
       const response = await callFunction({
         chain: instance.chain,
         address: instance.address,
-        contract: instance.contract_name,
+        contract: abiContractName ?? instance.contract_name,
         function_name: func.name,
         args,
       });

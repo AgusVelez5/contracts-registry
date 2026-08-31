@@ -5,19 +5,22 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use serde_json::json;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::abi::{call_read_function, format_sol_value, get_readable_functions, is_selector_present};
 use crate::config::Config;
+use crate::identity::resolve_contract_family;
 use crate::models::{
     BalanceResult, ContractInstance, DeploymentEvent,
     OnChainBytecodeIntegrityResult, ParamInfo, FunctionInfo,
-    ChainInfo
+    ChainInfo, ProxyInfo, VerifiedAgainst
 };
 use crate::pagination::{Paginated, paginate};
 use crate::parsing::{group_by_contract, load_all_instances, load_deployment_events, find_artifact_for_contract, filter_current};
 use crate::verification::{check_onchain_bytecode_integrity, IntegrityOutcome};
 use crate::errors::AppError;
 use crate::cache::IntegrityCache;
+use crate::proxy::{resolve_proxy_info, get_or_resolve_proxy_info};
 
 #[derive(Deserialize)]
 pub struct InstancesQuery {
@@ -27,6 +30,8 @@ pub struct InstancesQuery {
     pub page_size: Option<usize>,
     #[serde(default)]
     pub exclude_current: bool,
+    #[serde(default)]
+    pub exact: bool,
 }
 
 const DEFAULT_INSTANCES_PAGE_SIZE: usize = 1000;
@@ -38,7 +43,15 @@ pub async fn get_instances_handler(
     let mut instances = load_all_instances(&config.broadcast_path, &config.out_path)?;
 
     if let Some(contract) = &query.contract {
-        instances.retain(|i| i.contract_name.to_lowercase().contains(&contract.to_lowercase()));
+        let needles: Vec<String> = contract.split(',').map(|s| s.trim().to_lowercase()).collect();
+        if query.exact {
+            instances.retain(|i| needles.contains(&i.contract_name.to_lowercase()));
+        } else {
+            instances.retain(|i| {
+                let name_lower = i.contract_name.to_lowercase();
+                needles.iter().any(|n| name_lower.contains(n))
+            });
+        }
     }
 
     if query.exclude_current {
@@ -103,8 +116,6 @@ pub async fn integrity_check_handler(
     let mut all_results: Vec<OnChainBytecodeIntegrityResult> = Vec::new();
 
     for (contract_name, instances) in by_contract {
-        let (artifact, _path) = find_artifact_for_contract(&config.out_path, &contract_name)?;
-
         for instance in &instances {
             let cached = cache.get(instance.chain, &instance.address);
 
@@ -116,13 +127,77 @@ pub async fn integrity_check_handler(
                         chain: instance.chain,
                         matches: entry.matches,
                         reason: entry.reason.clone(),
+                        verified_against: entry.verified_against.clone(),
                         verified_at: entry.verified_at,
                     }
                 }
                 _ => {
                     let rpc_url = config.rpc_url(instance.chain);
+
+                    // Check whether this address is a proxy. If it is, and the
+                    // implementation is a known instance in this project,
+                    // verify against the implementation's own bytecode/artifact
+                    // instead of the proxy's — the proxy's bytecode never
+                    // changes and comparing against it would tell us nothing
+                    // useful about the logic that actually matters.
+                    // A failure to determine proxy status here is treated as
+                    // "not a proxy" for this specific fallback path — the
+                    // dedicated /proxy-info endpoint is the source of truth
+                    // for surfacing that failure explicitly to the user.
+                    let proxy_info = match rpc_url {
+                        Some(url) => resolve_proxy_info(&config, instance.chain, &instance.address, url)
+                            .await
+                            .ok(),
+                        None => None,
+                    };
+
+                    let (target_contract_name, target_address, verified_against) = match &proxy_info {
+                        Some(info) if info.is_proxy && info.implementation_contract_name.is_some() => {
+                            let impl_name = info.implementation_contract_name.clone().unwrap();
+                            let impl_addr = info.implementation_address.clone().unwrap();
+                            (
+                                impl_name.clone(),
+                                impl_addr.clone(),
+                                Some(VerifiedAgainst {
+                                    contract_name: impl_name,
+                                    address: impl_addr,
+                                }),
+                            )
+                        }
+                        Some(info) if info.is_proxy => {
+                            // It's a proxy, but the implementation isn't tracked
+                            // as a known instance in this project — we have no
+                            // artifact to compare against. Fail visibly.
+                            let impl_addr = info.implementation_address.clone().unwrap_or_default();
+                            let fresh = OnChainBytecodeIntegrityResult {
+                                contract_name: contract_name.clone(),
+                                address: instance.address.clone(),
+                                chain: instance.chain,
+                                matches: None,
+                                reason: Some(format!(
+                                    "Detected as a proxy delegating to {impl_addr}, which isn't tracked as a deployed contract in this project — can't verify its bytecode locally."
+                                )),
+                                verified_against: None,
+                                verified_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
+                            };
+                            cache.put(instance.chain, &instance.address, &fresh);
+                            all_results.push(fresh);
+                            continue;
+                        }
+                        _ => (contract_name.clone(), instance.address.clone(), None),
+                    };
+
+                    let (artifact, _path) = find_artifact_for_contract(&config.out_path, &target_contract_name)?;
+
+                    // Build a lightweight instance reference pointing at the
+                    // verification target (proxy's own address if not a proxy,
+                    // implementation's address if it is) so the existing
+                    // verification logic doesn't need to know about proxies at all.
+                    let mut target_instance = instance.clone();
+                    target_instance.address = target_address;
+
                     let (outcome, verified_at) =
-                        check_onchain_bytecode_integrity(instance, &artifact, rpc_url).await;
+                        check_onchain_bytecode_integrity(&target_instance, &artifact, rpc_url).await;
 
                     let (matches, reason) = match &outcome {
                         IntegrityOutcome::Matches => (Some(true), None),
@@ -137,12 +212,10 @@ pub async fn integrity_check_handler(
                         chain: instance.chain,
                         matches,
                         reason,
+                        verified_against,
                         verified_at,
                     };
 
-                    // Only persist real/permanent outcomes — a transient failure
-                    // (RPC down, forge couldn't run) shouldn't overwrite a
-                    // previously cached good result.
                     if !matches!(outcome, IntegrityOutcome::Failed(_)) {
                         cache.put(instance.chain, &instance.address, &fresh);
                     }
@@ -235,6 +308,8 @@ pub struct DeploymentEventsQuery {
     pub chains: Option<String>,
     pub contract: Option<String>,
     pub tx_hash: Option<String>,
+    #[serde(default)]
+    pub exact: bool,
 }
 
 pub async fn deployment_events_handler(
@@ -244,7 +319,15 @@ pub async fn deployment_events_handler(
     let mut events = load_deployment_events(&config.broadcast_path)?;
 
     if let Some(contract) = &query.contract {
-        events.retain(|e| e.contract_name.to_lowercase().contains(&contract.to_lowercase()));
+        let needles: Vec<String> = contract.split(',').map(|s| s.trim().to_lowercase()).collect();
+        if query.exact {
+            events.retain(|e| needles.contains(&e.contract_name.to_lowercase()));
+        } else {
+            events.retain(|e| {
+                let name_lower = e.contract_name.to_lowercase();
+                needles.iter().any(|n| name_lower.contains(n))
+            });
+        }
     }
 
     if let Some(tx_hash) = &query.tx_hash {
@@ -306,14 +389,30 @@ pub struct FunctionsQuery {
 
 pub async fn functions_handler(
     State(config): State<Arc<Config>>,
+    State(cache): State<Arc<IntegrityCache>>,
     Query(query): Query<FunctionsQuery>,
 ) -> Result<Json<Vec<FunctionInfo>>, AppError> {
     let (artifact, _path) = find_artifact_for_contract(&config.out_path, &query.contract)?;
 
     let functions = get_readable_functions(&artifact.abi);
 
+    // The address the state lives at (query.address, possibly a proxy) is
+    // different from the address whose bytecode actually contains the
+    // function selectors — if it's a proxy, that's the implementation's
+    // address, not the proxy's own.
+    let bytecode_check_address = match config.rpc_url(query.chain) {
+        Some(_) => {
+            let proxy_info = get_or_resolve_proxy_info(&config, &cache, query.chain, &query.address).await;
+            match proxy_info.implementation_address {
+                Some(impl_addr) if proxy_info.is_proxy => impl_addr,
+                _ => query.address.clone(),
+            }
+        }
+        None => query.address.clone(),
+    };
+
     let deployed_bytecode = match config.rpc_url(query.chain) {
-        Some(rpc_url) => crate::rpc::get_deployed_code(rpc_url, &query.address).await.ok(),
+        Some(rpc_url) => crate::rpc::get_deployed_code(rpc_url, &bytecode_check_address).await.ok(),
         None => None,
     };
 
@@ -382,4 +481,50 @@ pub async fn chains_handler(
         .collect();
 
     Json(chains)
+}
+
+#[derive(Deserialize, Default)]
+pub struct ProxyInfoQuery {
+    pub chain: Option<u64>,
+    pub address: Option<String>,
+}
+
+pub async fn proxy_info_handler(
+    State(config): State<Arc<Config>>,
+    State(cache): State<Arc<IntegrityCache>>,
+    Query(query): Query<ProxyInfoQuery>,
+) -> Result<Json<HashMap<String, ProxyInfo>>, AppError> {
+    let instances = load_all_instances(&config.broadcast_path, &config.out_path)?;
+    let mut current = filter_current(instances);
+
+    if let Some(chain) = query.chain {
+        current.retain(|i| i.chain == chain);
+    }
+    if let Some(address) = &query.address {
+        current.retain(|i| i.address.eq_ignore_ascii_case(address));
+    }
+
+    let mut results: HashMap<String, ProxyInfo> = HashMap::new();
+
+    for instance in &current {
+        let key = format!("{}:{}", instance.chain, instance.address);
+        let proxy_info = get_or_resolve_proxy_info(&config, &cache, instance.chain, &instance.address).await;
+        results.insert(key, proxy_info);
+    }
+
+    Ok(Json(results))
+}
+
+#[derive(Deserialize)]
+pub struct ContractFamilyQuery {
+    pub name: String,
+}
+
+pub async fn contract_family_handler(
+    State(config): State<Arc<Config>>,
+    State(cache): State<Arc<IntegrityCache>>,
+    Query(query): Query<ContractFamilyQuery>,
+) -> Result<Json<Vec<String>>, AppError> {
+    let family = resolve_contract_family(&config, &cache, &query.name).await?;
+    Ok(Json(family))
 }

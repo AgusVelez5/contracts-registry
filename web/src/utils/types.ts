@@ -30,12 +30,18 @@ export interface Paginated<T> {
 
 export type InstancesResponse = Paginated<ContractInstance>;
 
+export interface VerifiedAgainst {
+  contract_name: string;
+  address: string;
+}
+
 export interface OnChainBytecodeIntegrityResult {
   contract_name: string;
   address: string;
   chain: number;
   matches: boolean | null;
   reason: string | null;
+  verified_against: VerifiedAgainst | null;
   verified_at: number;
 }
 
@@ -72,4 +78,11 @@ export interface FunctionInfo {
 export interface ChainInfo {
   chain: number;
   explorer_url: string | null;
+}
+
+export interface ProxyInfo {
+  is_proxy: boolean;
+  implementation_address: string | null;
+  implementation_contract_name: string | null;
+  error: string | null;
 }

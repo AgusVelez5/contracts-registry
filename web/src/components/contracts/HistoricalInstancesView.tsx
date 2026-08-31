@@ -29,6 +29,7 @@ function HistoricalInstancesView({ filter, lockedChain }: HistoricalInstancesVie
     page,
     pageSize,
     excludeCurrent: true,
+    exact: true,
   });
 
   const { data: balances = [] } = useBalances({ contract: filter, currentOnly: false });

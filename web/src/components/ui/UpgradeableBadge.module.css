@@ -1,0 +1,14 @@
+.badgeLink {
+  display: inline-flex;
+  align-items: center;
+}
+
+.full {
+  height: 20px;
+  width: auto;
+}
+
+.iconOnly {
+  height: 20px;
+  width: 20px;
+}

@@ -42,6 +42,10 @@ on Anvil/local chains and public chains.
   for its "partial match" verification)
 - Differences in the trailing Solidity metadata hash between builds of
   otherwise-identical source (also masked out)
+- Proxies (see [Proxy detection](#proxy-detection) below) — when a contract is
+  detected as a proxy and its implementation is a known contract in this
+  project, verification runs against the implementation's bytecode/artifact,
+  not the proxy's own (whose bytecode never changes on an upgrade)
 
 **Not supported:**
 - Contracts linked against external libraries — the tool has no mechanism yet
@@ -54,7 +58,8 @@ on Anvil/local chains and public chains.
 
 Detects whether a deployed contract is a proxy delegating to a separate
 implementation contract, and if so, resolves and displays that implementation
-address.
+address. See the [Glossary](./GLOSSARY.md#upgradeable--proxy) for what this
+means and why it matters.
 
 **Supported:**
 - EIP-1967 (the standard used by Transparent Proxies, and in practice by most
@@ -76,6 +81,13 @@ address.
   matching rather than storage slots, a fundamentally different mechanism
 - ERC-3643 proxies — resolve their implementation via a separate
   "implementation authority" contract with its own interface
+- Implementations that get renamed between upgrades (e.g. a proxy pointing to
+  `Counter` today, then to a differently-named `CounterV2` after an upgrade)
+  — this tool assumes an implementation's `contract_name` stays the same
+  across upgrades, the common real-world pattern (teams typically ship a new
+  proxy for a major rewrite instead, e.g. Uniswap v2/v3/v4 as separate
+  contracts). A renamed implementation won't be recognized as related to its
+  proxy's deployment history.
 
 ## RPC & chain configuration
 

@@ -13,6 +13,7 @@ interface DeploymentEventsViewProps {
   filter?: string;
   linkToProfile?: boolean;
   lockedChain?: number;
+  exactMatch?: boolean;
 }
 
 function calculateGasCost(event: DeploymentEvent): string {
@@ -21,7 +22,7 @@ function calculateGasCost(event: DeploymentEvent): string {
   return formatWei(cost);
 }
 
-function DeploymentEventsView({ filter = "", linkToProfile = true, lockedChain }: DeploymentEventsViewProps) {
+function DeploymentEventsView({ filter = "", linkToProfile = true, lockedChain, exactMatch = false }: DeploymentEventsViewProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [activeChains, setActiveChains] = useState<number[]>([]);
@@ -33,6 +34,7 @@ function DeploymentEventsView({ filter = "", linkToProfile = true, lockedChain }
     pageSize,
     contract: filter,
     chains: effectiveChains,
+    exact: exactMatch,
   });
 
   const headers = lockedChain
